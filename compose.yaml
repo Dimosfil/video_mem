@@ -1,0 +1,16 @@
+services:
+  video-clip-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      VIDEO_BOT_DATA_DIR: /app/data/video-bot
+      FFMPEG_EXECUTABLE: /usr/bin/ffmpeg
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 20s
+    volumes:
+      - ./data:/app/data
