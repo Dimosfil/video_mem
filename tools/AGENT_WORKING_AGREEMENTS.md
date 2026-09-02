@@ -120,6 +120,13 @@
 - Branch naming: `TODO`.
 - Generated files policy: `TODO`.
 - Never commit secrets, credentials, local databases, logs, or caches.
+- Never add, stage, commit, or push content payloads such as LLM or other model
+  weights/checkpoints, photos, video, audio, datasets, archives, or similar
+  large binary artifacts. Keep them outside Git in project-approved artifact or
+  object storage; commit only compact manifests, source URLs, checksums, or
+  retrieval instructions. Inspect untracked and unusually large files before
+  staging and add project-local ignore rules for prohibited content. Require
+  explicit user approval for any exact project-specific exception.
 - Follow `tools/project-memory/git-preferences.json` for commit-message
   languages. English is primary; selected additional languages are included when
   the user explicitly asks the agent to commit.
@@ -462,8 +469,10 @@ or:
 - Treat task-manager configuration as project-local state.
 - Store only the manager name or `service_id` plus non-secret project
   preferences in project memory.
-- Resolve task-manager runtime URLs through GI config-service by service id;
-  do not store, guess, or copy API endpoints from old notes or other projects.
+- Resolve task-manager runtime URLs through GI config-service by service id only
+  when project config-service integration is enabled; do not store, guess, or
+  copy API endpoints from old notes or other projects. If integration is
+  disabled, manager-backed commands stop and point to `gi config on`.
 - If a configured manager id is missing from config-service, stop with a concise
   blocker instead of falling back to port scans or stale task-manager memory.
 - Before posting plans or starting sprint work, read the manager guide when

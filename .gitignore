@@ -1,4 +1,6 @@
 .venv/
+.env
+data/
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -29,3 +31,15 @@ tools/deploy/ftp.local.json
 tools/deploy/prod.local.json
 tools/deploy/deploy-gateway.local.json
 *.log
+
+.repowise/
+
+# Generated/private files for the standalone YouTube viewer
+youtube_viewer/build/
+youtube_viewer/dist/
+youtube_viewer/bin/
+youtube_viewer/obj/
+youtube_viewer/tests/bin/
+youtube_viewer/tests/obj/
+youtube_viewer/assets/*.png
+youtube_viewer/assets/*.ico

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="..\BrowserAddress.cs" Link="BrowserAddress.cs" />
+    <Compile Include="..\ClosedTabHistory.cs" Link="ClosedTabHistory.cs" />
+    <Compile Include="..\ProxyConfiguration.cs" Link="ProxyConfiguration.cs" />
+    <Compile Include="..\ViewerProfile.cs" Link="ViewerProfile.cs" />
+  </ItemGroup>
+</Project>

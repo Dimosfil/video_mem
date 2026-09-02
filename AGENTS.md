@@ -82,6 +82,14 @@ implemented against each goal criterion and list remaining gaps as blockers.
   continue every safe task step that does not require exposing or unsafely
   persisting it. If one operation has no safe credential path, mark only that
   operation blocked or unverified and continue the independent work.
+- Never add, stage, commit, or push content payloads such as LLM or other model
+  weights/checkpoints, photos, video, audio, datasets, archives, or similar
+  large binary artifacts. Keep them outside Git in project-approved artifact or
+  object storage, and commit only compact manifests, source URLs, checksums, or
+  retrieval instructions. Before staging, inspect new and unusually large files
+  and update project-local ignore rules for prohibited content. Allow an
+  exception only when the user explicitly approves the exact content and Git
+  storage approach for this project.
 
 ## Restore Context
 
@@ -206,16 +214,30 @@ Run:
 .\start.ps1
 ```
 
+Run standalone YouTube viewer:
+
+```powershell
+.\youtube_viewer\start.ps1
+```
+
+Build standalone YouTube viewer executable:
+
+```powershell
+.\youtube_viewer\build.ps1
+```
+
 Test:
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
+dotnet run --project .\youtube_viewer\tests\YouTubeViewer.Tests.csproj --configuration Release
 ```
 
 Build:
 
 ```powershell
 .\.venv\Scripts\python.exe -m py_compile app.py
+dotnet build .\youtube_viewer\YouTubeViewer.csproj --configuration Release
 ```
 
 Inspect logs:
@@ -228,6 +250,8 @@ Get-ChildItem -LiteralPath .\downloads
 
 - Source: `app.py`
 - Tests: `tests/`
+- Standalone YouTube viewer: `youtube_viewer/`
+- Standalone YouTube viewer tests: `youtube_viewer/tests/`
 - Tools: `tools/` for durable development and agent tooling only
 - Outputs/evidence/build artifacts: `downloads/`
 - Summaries: `tools/summary/`

@@ -63,6 +63,14 @@ docker compose down
 
 Проверенный стек и команды: [`tools/project-memory/specs/technology-stack.md`](tools/project-memory/specs/technology-stack.md).
 
+## Отдельный просмотрщик YouTube
+
+Загрузчик остаётся корневым приложением. В [`youtube_viewer/`](youtube_viewer/README.md) живёт второе независимое WPF-приложение только для просмотра YouTube без функций скачивания. Оно поддерживает вкладки, адресную строку, браузерную навигацию и горячие клавиши. Его WebView2-трафик принудительно направляется через локальный HTTP-прокси Happ `127.0.0.1:10809` и не переключается на прямое соединение при недоступном прокси.
+
+```powershell
+.\youtube_viewer\start.ps1
+```
+
 ## Запуск
 
 ```powershell

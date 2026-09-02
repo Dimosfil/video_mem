@@ -10,3 +10,11 @@ and project commit-message language preferences.
   last mutation and after commit/push. Local and upstream HEAD equality does not
   prove that the worktree is clean. Never report a complete clean finish while
   a new task-scoped diff remains.
+- Before staging, inspect untracked and unusually large files. Never add, stage,
+  commit, or push content payloads such as LLM or other model
+  weights/checkpoints, photos, video, audio, datasets, archives, or similar
+  large binary artifacts. Store them outside Git and track only compact
+  manifests, source URLs, checksums, or retrieval instructions. Add appropriate
+  project-local ignore rules when prohibited content appears. Proceed only when
+  the user explicitly approves an exact project-specific exception and storage
+  approach.
