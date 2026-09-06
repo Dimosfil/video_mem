@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -17,18 +18,27 @@ public partial class MainWindow : Window
         public required TabItem Item { get; init; }
         public required TextBlock Title { get; init; }
         public required WebView2 View { get; init; }
+        public required string InitialAddress { get; init; }
+        public string? LastAddress { get; set; }
     }
 
     private readonly List<BrowserTab> _tabs = new();
     private readonly ClosedTabHistory _closedTabs = new();
+    private readonly ConnectionSettingsStore _connectionSettingsStore = new();
     private CoreWebView2Environment? _webViewEnvironment;
+    private ConnectionSettings _connectionSettings = ConnectionSettings.Default;
     private bool _initialized;
     private bool _fullScreen;
     private WindowState _windowStateBeforeFullScreen;
     private WindowStyle _windowStyleBeforeFullScreen;
 
-    public MainWindow()
+    public MainWindow() : this(new BrowserSessionStore())
     {
+    }
+
+    public MainWindow(BrowserSessionStore sessionStore)
+    {
+        _sessionStore = sessionStore;
         InitializeComponent();
     }
 
@@ -41,37 +51,33 @@ public partial class MainWindow : Window
     {
         try
         {
-            var proxy = ProxyConfiguration.Load();
-            StartupText.Text = $"Проверка Happ: {proxy.Address.Host}:{proxy.Address.Port}…";
-
-            if (!await proxy.IsAvailableAsync())
+            var connectionSettings = await LoadUsableConnectionSettingsAsync();
+            if (connectionSettings is null)
             {
-                MessageBox.Show(
-                    $"Локальный прокси Happ недоступен: {proxy.Address}\n\n" +
-                    "Запустите Happ, подключитесь к VPN и затем откройте YouTube Viewer снова.\n" +
-                    "Прямое подключение отключено, чтобы трафик YouTube не обходил VPN.",
-                    "YouTube Viewer",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
                 Close();
                 return;
             }
 
+            _connectionSettings = connectionSettings;
             var profileDirectory = ViewerProfile.UserDataFolder();
-
-            var options = new CoreWebView2EnvironmentOptions
+            var options = new CoreWebView2EnvironmentOptions();
+            if (_connectionSettings.GetProxy() is { } proxy)
             {
-                AdditionalBrowserArguments = proxy.BrowserArguments,
-            };
+                options.AdditionalBrowserArguments = proxy.BrowserArguments;
+            }
+
             _webViewEnvironment = await CoreWebView2Environment.CreateAsync(
                 browserExecutableFolder: null,
                 userDataFolder: profileDirectory,
                 options);
 
+            if (_windowClosing) return;
+
             _initialized = true;
             StartupPanel.Visibility = Visibility.Collapsed;
             SetChromeEnabled(true);
-            await CreateTabAsync(BrowserAddress.Home);
+            var restored = RestoreSessionTabs();
+            await Task.WhenAll(restored.Select(InitializeBrowserTabAsync));
         }
         catch (Exception exception)
         {
@@ -84,13 +90,98 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task CreateTabAsync(string address, bool focusAddress = false)
+    private async Task<ConnectionSettings?> LoadUsableConnectionSettingsAsync()
     {
-        if (_webViewEnvironment is null)
+        var settings = _connectionSettingsStore.Load();
+        while (settings.GetProxy() is { } proxy)
+        {
+            StartupText.Text = $"Проверка локального прокси: {proxy.Address.Host}:{proxy.Address.Port}…";
+            if (await proxy.IsAvailableAsync())
+            {
+                return settings;
+            }
+
+            var openSettings = MessageBox.Show(
+                $"Локальный HTTP-прокси недоступен: {proxy.Address}\n\n" +
+                "Открыть настройки подключения? Прямое соединение в режиме локального прокси не используется.",
+                "YouTube Viewer",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (openSettings != MessageBoxResult.Yes)
+            {
+                return null;
+            }
+
+            var dialog = new SettingsWindow(settings) { Owner = this };
+            if (dialog.ShowDialog() != true || dialog.SelectedSettings is null)
+            {
+                return null;
+            }
+
+            settings = dialog.SelectedSettings;
+            _connectionSettingsStore.Save(settings);
+        }
+
+        StartupText.Text = "Используется системное подключение…";
+        return settings;
+    }
+
+    private void OpenConnectionSettings()
+    {
+        var dialog = new SettingsWindow(_connectionSettings) { Owner = this };
+        if (dialog.ShowDialog() != true || dialog.SelectedSettings is null ||
+            dialog.SelectedSettings == _connectionSettings)
         {
             return;
         }
 
+        _connectionSettingsStore.Save(dialog.SelectedSettings);
+        RestartApplication();
+    }
+
+    private static void RestartApplication()
+    {
+        var executable = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(executable))
+        {
+            MessageBox.Show(
+                "Настройки сохранены. Перезапустите YouTube Viewer вручную.",
+                "YouTube Viewer",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        var startInfo = new ProcessStartInfo(executable)
+        {
+            UseShellExecute = true,
+            WorkingDirectory = System.IO.Path.GetDirectoryName(executable) ?? string.Empty,
+        };
+        startInfo.ArgumentList.Add("--wait-for-pid");
+        startInfo.ArgumentList.Add(Environment.ProcessId.ToString());
+        Process.Start(startInfo);
+        Application.Current.Shutdown();
+    }
+
+    private async Task CreateTabAsync(string address, bool focusAddress = false)
+    {
+        if (_webViewEnvironment is null || _windowClosing)
+        {
+            return;
+        }
+
+        var tab = AddBrowserTab(address);
+        SaveSession();
+        await InitializeBrowserTabAsync(tab);
+        if (focusAddress && ReferenceEquals(CurrentTab, tab))
+        {
+            AddressBox.Focus();
+            AddressBox.SelectAll();
+        }
+    }
+
+    private BrowserTab AddBrowserTab(string address)
+    {
         var view = new WebView2
         {
             DefaultBackgroundColor = System.Drawing.Color.FromArgb(15, 15, 15),
@@ -133,22 +224,35 @@ public partial class MainWindow : Window
             Item = item,
             Title = title,
             View = view,
+            InitialAddress = BrowserAddress.Resolve(address),
         };
 
         closeButton.Click += (_, _) => CloseTab(browserTab);
+        ConfigureTabInteractions(browserTab);
         _tabs.Add(browserTab);
         Tabs.Items.Add(item);
         Tabs.SelectedItem = item;
+        return browserTab;
+    }
 
-        await view.EnsureCoreWebView2Async(_webViewEnvironment);
-        ConfigureWebView(browserTab);
-        view.CoreWebView2.Navigate(BrowserAddress.Resolve(address));
-
-        if (focusAddress)
+    private async Task InitializeBrowserTabAsync(BrowserTab browserTab)
+    {
+        var view = browserTab.View;
+        try
         {
-            AddressBox.Focus();
-            AddressBox.SelectAll();
+            await view.EnsureCoreWebView2Async(_webViewEnvironment);
         }
+        catch (Exception) when (!_tabs.Contains(browserTab))
+        {
+            // A tab (or the window) can be closed while WebView2 initializes.
+            return;
+        }
+        if (!_tabs.Contains(browserTab))
+        {
+            return;
+        }
+        ConfigureWebView(browserTab);
+        view.CoreWebView2.Navigate(browserTab.InitialAddress);
     }
 
     private void ConfigureWebView(BrowserTab tab)
@@ -163,6 +267,7 @@ public partial class MainWindow : Window
 
         core.NavigationStarting += (_, args) =>
         {
+            RememberAddress(tab, args.Uri);
             if (ReferenceEquals(CurrentTab, tab))
             {
                 AddressBox.Text = args.Uri;
@@ -180,7 +285,11 @@ public partial class MainWindow : Window
             }
         };
         core.HistoryChanged += (_, _) => UpdateChromeIfCurrent(tab);
-        core.SourceChanged += (_, _) => UpdateChromeIfCurrent(tab);
+        core.SourceChanged += (_, _) =>
+        {
+            RememberAddress(tab, core.Source);
+            UpdateChromeIfCurrent(tab);
+        };
         core.DocumentTitleChanged += (_, _) =>
         {
             tab.Title.Text = string.IsNullOrWhiteSpace(core.DocumentTitle)
@@ -262,14 +371,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (tab.View.CoreWebView2 is not null)
-        {
-            _closedTabs.Push(tab.View.CoreWebView2.Source);
-        }
+        _closedTabs.Push(tab.LastAddress ?? tab.InitialAddress);
 
         _tabs.Remove(tab);
         Tabs.Items.Remove(tab.Item);
         tab.View.Dispose();
+        SaveSession();
 
         if (_tabs.Count == 0)
         {
@@ -410,6 +517,8 @@ public partial class MainWindow : Window
     private async void NewTabButton_Click(object sender, RoutedEventArgs e) =>
         await CreateTabAsync(BrowserAddress.Home, focusAddress: true);
 
+    private void SettingsButton_Click(object sender, RoutedEventArgs e) => OpenConnectionSettings();
+
     private void AddressBox_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter)
@@ -421,9 +530,10 @@ public partial class MainWindow : Window
 
     private void Tabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (e.Source == Tabs)
+        if (e.Source == Tabs && !_reorderingTabs)
         {
             UpdateChrome();
+            SaveSession();
         }
     }
 
@@ -500,6 +610,8 @@ public partial class MainWindow : Window
 
     private void Window_Closing(object? sender, CancelEventArgs e)
     {
+        SaveSession();
+        _windowClosing = true;
         foreach (var tab in _tabs.ToArray())
         {
             tab.View.Dispose();

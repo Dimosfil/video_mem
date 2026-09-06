@@ -1,3 +1,8 @@
+param(
+    [switch]$SelfContained,
+    [string]$OutputDirectory = ""
+)
+
 $ErrorActionPreference = "Stop"
 
 $AppRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -8,7 +13,12 @@ $IconSource = Join-Path $AppRoot "assets\youtube-viewer-reference.png"
 $IconPath = Join-Path $AppRoot "build\youtube-viewer.ico"
 $Project = Join-Path $AppRoot "YouTubeViewer.csproj"
 $DistPath = Join-Path $AppRoot "dist"
-$PublishPath = Join-Path $DistPath "YouTube Viewer"
+$PublishPath = if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
+    Join-Path $DistPath "YouTube Viewer"
+}
+else {
+    [System.IO.Path]::GetFullPath($OutputDirectory)
+}
 $Executable = Join-Path $PublishPath "YouTube Viewer.exe"
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
@@ -66,10 +76,12 @@ if ($LASTEXITCODE -ne 0) {
     throw "Locked NuGet restore failed."
 }
 
+$selfContainedValue = if ($SelfContained) { "true" } else { "false" }
+
 & dotnet publish $Project `
     --configuration Release `
     --runtime win-x64 `
-    --self-contained false `
+    --self-contained $selfContainedValue `
     --output $PublishPath `
     --no-restore `
     --nologo `

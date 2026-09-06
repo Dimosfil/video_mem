@@ -8,11 +8,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>YouTube Viewer</AssemblyName>
     <RootNamespace>YouTubeViewer</RootNamespace>
-    <Version>1.1.1</Version>
-    <FileVersion>1.1.1.0</FileVersion>
-    <AssemblyVersion>1.1.1.0</AssemblyVersion>
+    <Version>1.3.0</Version>
+    <FileVersion>1.3.0.0</FileVersion>
+    <AssemblyVersion>1.3.0.0</AssemblyVersion>
     <Product>YouTube Viewer</Product>
-    <Description>Standalone YouTube viewer routed through Happ</Description>
+    <Description>Standalone YouTube viewer with configurable routing</Description>
     <ApplicationIcon Condition="Exists('build\youtube-viewer.ico')">build\youtube-viewer.ico</ApplicationIcon>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>

@@ -27,10 +27,10 @@ stack facts, commands, runtime assumptions, and operational notes here.
 | JavaScript runtime | Node.js | `app.py` | Optional YouTube challenge runtime for yt-dlp |
 | Telegram API client | requests 2.x | `requirements.txt`, `bot/telegram.py` | Long polling, messages, callback buttons, and video delivery |
 | Data/storage | Local filesystem, JSON job records, WebView profile | `app.py`, `bot/repository.py`, `youtube_viewer/MainWindow.xaml.cs`, `.gitignore` | Downloads, bot runtime data, and private viewer state are ignored |
-| Build/package | PowerShell, venv/pip, dotnet publish, NuGet lock file | `start.ps1`, `youtube_viewer/build.ps1`, `youtube_viewer/start.ps1` | Viewer produces a framework-dependent win-x64 desktop bundle; no installer yet |
+| Build/package | PowerShell, venv/pip, dotnet publish, NuGet lock file, Inno Setup 6 | `start.ps1`, `youtube_viewer/build.ps1`, `youtube_viewer/start.ps1`, `packaging/windows/` | Viewer produces a framework-dependent portable bundle and a self-contained per-user Windows installer |
 | Bot container | Docker/Compose, Python 3.13 slim | `Dockerfile`, `compose.yaml` | Includes FFmpeg and Node.js; publishes no ports |
 | Test/quality | Python `unittest` + .NET executable tests | `tests/`, `youtube_viewer/tests/` | Downloader regression and viewer address/proxy/tab-state checks |
-| Deployment/runtime | Local Windows processes or Docker Compose | `start.ps1`, `start-bot.ps1`, `youtube_viewer/start.ps1`, `compose.yaml` | Bot MVP needs a Telegram token and outbound network access; viewer needs local Happ |
+| Deployment/runtime | Local Windows processes or Docker Compose | `start.ps1`, `start-bot.ps1`, `youtube_viewer/start.ps1`, `compose.yaml` | Bot MVP needs a Telegram token and outbound network access; viewer supports the system route or an optional local HTTP proxy |
 
 ## Commands
 
@@ -40,6 +40,7 @@ stack facts, commands, runtime assumptions, and operational notes here.
 | Run | `.\start.ps1` | `README.md` |
 | Run YouTube viewer | `.\youtube_viewer\start.ps1` | `youtube_viewer/README.md` |
 | Build YouTube viewer | `.\youtube_viewer\build.ps1` | `youtube_viewer/build.ps1` |
+| Build YouTube viewer installer | `.\packaging\windows\build.ps1` | `packaging/windows/` |
 | Test | `.\.venv\Scripts\python.exe -m unittest discover -s tests -v` | `README.md`, `tests/` |
 | Test YouTube viewer | `dotnet run --project .\youtube_viewer\tests\YouTubeViewer.Tests.csproj --configuration Release` | `youtube_viewer/README.md`, `youtube_viewer/tests/` |
 | Compile check | `.\.venv\Scripts\python.exe -m compileall -q app.py bot` | `app.py`, `bot/` |
@@ -56,7 +57,7 @@ stack facts, commands, runtime assumptions, and operational notes here.
 
 ## Gaps
 
-- No installer; the verified packaged executable is produced under `youtube_viewer/dist/`.
+- The Windows installer is unsigned; Windows SmartScreen may warn until a trusted code-signing certificate is configured.
 - No automated network integration test.
 - Real Telegram delivery still requires a bot token and network verification.
 - The MVP uses an in-process bounded queue; it does not yet survive a process restart while a job is running.

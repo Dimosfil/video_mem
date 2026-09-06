@@ -41,5 +41,7 @@ youtube_viewer/bin/
 youtube_viewer/obj/
 youtube_viewer/tests/bin/
 youtube_viewer/tests/obj/
+youtube_viewer/tests/ui/bin/
+youtube_viewer/tests/ui/obj/
 youtube_viewer/assets/*.png
 youtube_viewer/assets/*.ico

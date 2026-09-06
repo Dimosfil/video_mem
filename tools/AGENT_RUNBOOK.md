@@ -41,16 +41,28 @@ Standalone YouTube viewer:
 .\youtube_viewer\start.ps1
 ```
 
+Build the per-user Windows installer:
+
+```powershell
+.\packaging\windows\build.ps1
+```
+
+Expected artifact: `youtube_viewer/dist/installer/YouTube-Viewer-Setup-<version>.exe`.
+The installer payload is self-contained for .NET 8, installs under
+`%LOCALAPPDATA%\Programs\YouTube Viewer`, and must preserve the external
+WebView2 profile during upgrades and uninstall.
+
 The launcher starts `youtube_viewer/dist/YouTube Viewer/YouTube Viewer.exe` and
 builds it first when the executable is missing or viewer source is newer.
 
-The viewer fails closed unless the Happ HTTP proxy is reachable. Its default is
-`http://127.0.0.1:10809`; set `YOUTUBE_VIEWER_PROXY` before launch only when the
-local Happ HTTP port has been changed.
+The viewer defaults to the system connection and therefore has no dependency on
+a specific VPN client. The toolbar settings dialog can instead select any local
+HTTP proxy. Local-proxy mode fails closed when that endpoint is unavailable.
 
 The WebView2 user-data root is `%LOCALAPPDATA%\VideoMem\YouTubeViewer`. Build,
-publish, and executable replacement operations must preserve it. Pass this root
-to WebView2 directly; WebView2 appends its own `EBWebView` directory.
+publish, and executable replacement operations must preserve it. Connection
+settings are stored in `settings.json` under the same root. Pass this root to
+WebView2 directly; WebView2 appends its own `EBWebView` directory.
 
 ## Test
 
@@ -65,6 +77,7 @@ dotnet run --project .\youtube_viewer\tests\YouTubeViewer.Tests.csproj --configu
 .\.venv\Scripts\python.exe -m compileall -q app.py bot
 dotnet build .\youtube_viewer\YouTubeViewer.csproj --configuration Release
 .\youtube_viewer\build.ps1
+.\packaging\windows\build.ps1
 ```
 
 ## Smoke Check
@@ -115,9 +128,9 @@ Get-ChildItem -LiteralPath .\downloads
   normal use.
 - The viewer provides real WebView2 tabs, browser navigation, address/search,
   loading state, tab restoration, and browser-style keyboard shortcuts.
-- WebView2 is explicitly configured to use the Happ HTTP proxy at
-  `127.0.0.1:10809`, with QUIC disabled and no direct-connect fallback when the
-  proxy is unavailable.
+- WebView2 uses either the system route or a user-selected local HTTP proxy.
+  Local-proxy mode disables QUIC and has no direct-connect fallback when the
+  configured endpoint is unavailable.
 - Tkinter is provided by the Python runtime.
 - FFmpeg enables separate video/audio stream merging.
 - Node.js is optional and is passed to yt-dlp when found on PATH.

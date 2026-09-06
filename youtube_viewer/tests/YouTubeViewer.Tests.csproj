@@ -10,8 +10,12 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="..\BrowserAddress.cs" Link="BrowserAddress.cs" />
+    <Compile Include="..\BrowserSession.cs" Link="BrowserSession.cs" />
     <Compile Include="..\ClosedTabHistory.cs" Link="ClosedTabHistory.cs" />
+    <Compile Include="..\TabOperations.cs" Link="TabOperations.cs" />
+    <Compile Include="..\ConnectionSettings.cs" Link="ConnectionSettings.cs" />
     <Compile Include="..\ProxyConfiguration.cs" Link="ProxyConfiguration.cs" />
     <Compile Include="..\ViewerProfile.cs" Link="ViewerProfile.cs" />
+    <Compile Include="..\ViewerInstance.cs" Link="ViewerInstance.cs" />
   </ItemGroup>
 </Project>

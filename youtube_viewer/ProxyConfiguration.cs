@@ -4,24 +4,18 @@ namespace YouTubeViewer;
 
 public sealed record ProxyConfiguration(Uri Address)
 {
-    public const string EnvironmentVariable = "YOUTUBE_VIEWER_PROXY";
     public const string DefaultAddress = "http://127.0.0.1:10809";
 
     public string BrowserArguments => $"--proxy-server={Address.AbsoluteUri.TrimEnd('/')} --disable-quic";
 
-    public static ProxyConfiguration Load(Func<string, string?>? readEnvironment = null)
+    public static ProxyConfiguration Parse(string value)
     {
-        readEnvironment ??= Environment.GetEnvironmentVariable;
-        var configured = readEnvironment(EnvironmentVariable);
-        var value = string.IsNullOrWhiteSpace(configured) ? DefaultAddress : configured.Trim();
-
-        if (!Uri.TryCreate(value, UriKind.Absolute, out var address) ||
+        if (!Uri.TryCreate(value.Trim(), UriKind.Absolute, out var address) ||
             address.Scheme is not ("http" or "https") ||
             string.IsNullOrWhiteSpace(address.Host) ||
             address.Port <= 0)
         {
-            throw new InvalidOperationException(
-                $"Некорректный адрес прокси в {EnvironmentVariable}: {value}");
+            throw new InvalidOperationException($"Некорректный адрес локального HTTP-прокси: {value}");
         }
 
         return new ProxyConfiguration(address);
