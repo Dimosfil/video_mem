@@ -1,5 +1,5 @@
 {
-  "instruction_kit_version": "2026.08.06.1",
+  "instruction_kit_version": "2026.09.05.1",
   "source": "https://github.com/Dimosfil/general-instructions.git",
   "installed_at": "2026-07-15T23:17:40.9830197+03:00",
   "update_check": {
@@ -234,7 +234,8 @@
     "2026.08.02.1__default_config_service_off_for_new_projects",
     "2026.08.02.2__disambiguate_short_config_toggle_aliases",
     "2026.08.05.1__keep_model_and_media_content_out_of_git",
-    "2026.08.06.1__add_code_intelligence_adapters"
+    "2026.08.06.1__add_code_intelligence_adapters",
+    "2026.09.05.1__scope_approval_and_verification_gates"
   ],
-  "last_update_check_at": "2026-09-02T15:14:53+03:00"
+  "last_update_check_at": "2026-09-05T16:29:29+03:00"
 }

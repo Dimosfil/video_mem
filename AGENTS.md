@@ -21,13 +21,11 @@ for the destination platform. The restored Windows desktop downloader is the
 first verified delivery surface; social-network bots and media adaptation are
 subsequent phases.
 
-Before implementation starts on a new project session, confirm a clear,
-measurable project goal. If no goal is present in local instructions, project
-memory, summaries, or the user's request, ask 1-3 focused questions to establish:
-
-- Target user or stakeholder.
-- Expected outcome.
-- Success criteria or release definition.
+Before implementation, derive the task goal and observable success criteria
+from the user's request and relevant project context. A clear bounded task is
+sufficient; do not require a separate project-goal interview or confirmation.
+Ask focused questions only when missing information materially changes the
+result or scope, and continue independent authorized work while waiting.
 
 Track the agreed goal in plans and final answers. At completion, report what was
 implemented against each goal criterion and list remaining gaps as blockers.
@@ -36,12 +34,15 @@ implemented against each goal criterion and list remaining gaps as blockers.
 
 - Start with this file.
 - Read only the modules needed for the current request.
+- Before introducing a clarification or approval gate, apply
+  `patterns/AGENTS_RUNTIME/03-rule-precedence.md` and check existing authorization.
 - Before acting on a concrete task, select and read the matching module(s);
   this entrypoint alone is enough only for greetings or status-neutral replies.
 - Treat user wording such as "do by GI", "follow GI", "strictly by GI", and
   equivalent local-language forms as a request for strict compliance with all
-  loaded GI rules. If an applicable rule cannot be followed, stop and report the
-  concrete blocker or explicit deferral instead of silently continuing.
+  loaded GI rules. If an applicable rule cannot be followed, stop the affected
+  operation and report the concrete blocker or explicit deferral. Continue
+  independent authorized work without claiming the blocked step is complete.
 - On the first concrete task in a new chat/session, before task-specific work,
   run a quiet GI update check: read local instruction-kit metadata and accepted
   source `VERSION.md`/`migrations/`, and apply pending accepted migrations.
