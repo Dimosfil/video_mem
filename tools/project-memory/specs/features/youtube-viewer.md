@@ -46,6 +46,17 @@ download workflow.
 
 ## Tab Management Contract
 
+- The tab strip ends with a real "+" button using the existing Ctrl+T/home-tab
+  creation path. Headers scroll horizontally when space runs out; the button
+  stays outside the scrolling region and is never counted as a browser tab.
+- "Duplicate tab" targets the context-menu tab, including a background or
+  uninitialized tab, and opens its last known/requested URL immediately to its
+  right. Select and persist the independent new WebView; retain the original.
+  Navigation history and exact playback position are not copied.
+- Verified on 2026-09-14: 21/21 logic tests and isolated live WPF/WebView2
+  checks pass, including the tab-strip button at minimum width, background
+  duplication of a changed URL, independent document state and session order.
+  Runtime evidence: `downloads/viewer-runtime-test-99d816d78bbb45a4bcda34c8a8a3d265/`.
 - Drag a tab header with the left mouse button past the Windows drag threshold;
   drop on the left/right half of another header to insert before/after it.
   Dropping outside the tab headers or pressing Escape cancels the operation.
@@ -53,7 +64,7 @@ download workflow.
   and selected tab. The internal order and displayed order remain identical.
   The close button is not a drag handle; page drag/drop is not a tab move.
 - A header context menu targets the clicked tab, including background tabs.
-  It offers current, others, left, right, all, and reopen-last-closed commands.
+  It offers duplicate, current, others, left, right, all, and reopen-last-closed commands.
   Left/right use the current displayed order and exclude the clicked tab.
   Empty groups and empty restoration history disable their menu commands.
 - Bulk closure snapshots its target group before removal. If the active tab is
@@ -85,7 +96,10 @@ download workflow.
   the open set. Explicitly closing a tab removes it from the saved set; Close All
   persists an empty set, so the next launch opens the home page.
 - Read the saved set at startup; build every tab placeholder synchronously and
-  restore selection before initializing WebViews asynchronously. Suppress writes
+  restore selection before initializing only the selected WebView asynchronously.
+  Initialize each other WebView on first selection and retain its initialization
+  task to avoid duplicate handlers or navigation. Never await all hidden tabs:
+  WPF WebView2 initialization may wait until a tab becomes visible. Suppress writes
   until all placeholders exist, and ignore late callbacks from disposed tabs.
   Closing during initialization must retain every requested URL.
 - Write by atomic replacement with a backup of the previous readable session.
@@ -110,6 +124,52 @@ download workflow.
   The running pre-persistence build was left open to avoid losing its unsaved
   tabs; no recovery of its old tab list or live-profile restart is claimed.
 
+## Loading And Failure Contract
+
+- Startup finishes when the selected restored tab is initialized; background
+  placeholders keep their URLs and restore their saved document titles before loading.
+  Older sessions without titles show the host until the document title arrives.
+  The full requested address is available in the tab tooltip.
+- Keep loading, navigation ID, failure and timeout state per tab. Selecting a
+  completed tab clears the previous tab's loading indicator; late completion
+  from an older navigation must not change the newer navigation's state.
+- A navigation error or 30-second document-readiness deadline shows a WPF retry/settings
+  panel. Hide the failed tab's native view so it cannot cover the panel. Retain
+  the real requested URL in the session. Do not change proxy/system routing.
+- Cancel the deadline at top-level DOMContentLoaded for the matching navigation
+  ID and finish the loading indicator. NavigationCompleted waits for auxiliary
+  resources too: slow images must not stop/hide a usable document or player.
+  Ignore readiness events from superseded or closed tabs and failed navigations.
+- A retry clears the error, shows the native view and navigates to the saved
+  requested URL. Initialization failures remain local to that tab and can retry;
+  they must not close the window or discard other restored tabs.
+- Cancel navigation watchdogs when the navigation completes, another starts,
+  or the tab/window closes. A background failure must not cover the active page.
+- The `--webview` UI-test mode uses a plain test Application (no production
+  startup), an ignored isolated profile, an off-screen non-activating window,
+  and intercepted HTTP responses. It exercises seven restored real WebViews,
+  viewport/document switching, JavaScript state after reorder, a real navigation
+  deadline, background failure isolation and successful retry.
+- Include a ready HTML document with an indefinitely delayed image alongside a
+  delayed top-level document. After the real deadline, only the latter fails;
+  the former retains its navigation/document. `--playback-url` accepts a public
+  YouTube watch URL and verifies advancing time and decoded frames beyond 35
+  seconds in an isolated muted profile, excluding advertisements.
+- On 2026-09-09 the pre-fix runtime test reproduced indefinite startup waiting:
+  the selected tab initialized and loaded, while all six hidden initialization
+  tasks remained pending. This proves a startup bug, not the exact network cause
+  of the user's black YouTube page. Live YouTube/VPN connectivity is not covered
+  by deterministic local-response tests.
+- The corrected live test passed on 2026-09-09, including all seven loaded
+  documents, visible viewports, retained JavaScript state after moving a tab,
+  the actual 30-second timeout, background isolation and retry. Passing-run
+  evidence directory: `downloads/viewer-runtime-test-11412c2aab51413c89cca9bb3ecec514/`.
+- The separate `--youtube` smoke passed with a clean isolated profile and system
+  routing on 2026-09-09: the user's public search URL rendered the YouTube search
+  component and the normal first-visit consent dialog. Preview:
+  `downloads/viewer-runtime-test-5ecb1b33f0454f0fa78e502f1aa87617/youtube-search.png`.
+  This does not inspect the user's existing authenticated profile.
+
 ## Boundaries
 
 - `youtube_viewer` does not import `yt-dlp`, downloader source, cookies.txt, or
@@ -133,6 +193,97 @@ download workflow.
   installation does not require elevation.
 
 ## Verification
+
+### Built-in ad blocking (1.3.5, 2026-09-16)
+
+- Goal: block YouTube ads inside the Viewer without changing VPN, connection
+  settings, proxy arguments, DNS or other browser profiles.
+- Enable WebView2 extension support in the existing environment. Restore the
+  checksum-pinned uBO Lite Edge release during MSBuild; bundle all extension
+  source, rules and license. See `adblock.lock.json` and third-party notices.
+- `AdBlocker` installs once per window/profile before user navigation. A stable
+  public manifest key preserves its identity across build/install locations.
+  Read the existing enabled flag before reinstalling, defaulting to enabled on
+  first use. Never remove unrelated profile extensions.
+- Startup/re-enable waits for the upstream worker, optimal filtering, host
+  permission and content-script registration in a separate invisible controller.
+  Close that controller after the readiness check; never put its dashboard URL
+  into user history or persisted sessions. Readiness is bounded to 15 seconds
+  plus individual script-call timeouts.
+- Toolbar button reports on/off/unavailable. Toggle the profile extension and
+  reload only the current page. Existing other pages can need a manual reload
+  to remove already injected cosmetic filters. On initialization/readiness
+  failure continue browsing, visibly report unavailable, and do not claim active
+  protection. Normal startup does not download or silently update filter code.
+- Verified: 21/21 logic tests; complete real WebView2 suite with long-feed
+  thumbnail recovery, tabs, navigation deadlines and the actual uBO Lite worker.
+  Advertising image requests fail with `ERR_BLOCKED_BY_CLIENT`; ordinary
+  thumbnails are allowed; realistic YouTube ad-card markup is hidden while
+  content/player remains. Disable/re-enable, persisted disabled state on
+  reinstall and no duplicate blocker identity also pass.
+  Evidence: `downloads/adblock-logic-tests.log`, `downloads/adblock-webview-tests.log`,
+  `downloads/adblock-full-webview-tests.log`.
+- Release: installer 1.3.5 built; installer/payload numeric versions both
+  1.3.5.0, bundled extension version/key/license checked. SHA256 and size are in
+  `downloads/youtube-viewer-installer-1.3.5.json`; build log is adjacent.
+  Installation into the user's existing app was not performed.
+- Remaining live verification gap: isolated public YouTube playback timed out
+  before document readiness after 30 seconds over system routing. See
+  `downloads/adblock-live-playback.log`. This does not prove real video ads are
+  absent or diagnose the user's route. Do not change VPN/routing to work around
+  it; the user explicitly excluded VPN changes from this task.
+
+### Thumbnail recovery contract (1.3.4)
+
+- 2026-09-15: 21/21 logic tests and the real WebView2 regression passed.
+  The isolated fixture scrolls 150 cards, then checks dynamically appended and
+  recycled cards, transient errors, a stalled response, the two-retry limit,
+  offscreen deferral, unchanged successful images and retained scroll position.
+  Evidence: `downloads/thumbnail-recovery-tests.log`. The user's authenticated
+  YouTube session was not inspected; exact incident reproduction remains open.
+- Installer 1.3.4 and payload Windows version parts match (1.3.4.0).
+  SHA256, size and artifact path: `downloads/youtube-viewer-installer-1.3.4.json`;
+  build log: `downloads/youtube-viewer-installer-1.3.4-build.log`.
+  Installation and upgrade of the user's running copy were not performed.
+
+- Register `ThumbnailRecovery.Script` before each tab's first navigation. Run
+  only in the top-level YouTube document, including dynamically appended cards.
+- Observe `yt-img-shadow img` and `yt-image img`. Only HTTPS `ytimg.com`
+  `/vi/` and `/vi_webp/` images with a plain `src` are eligible; leave responsive
+  `srcset`/`picture` selection and other sites/resources to the browser.
+- Retry visible failed images after 2/4 seconds, and visible stalled images
+  after 20 seconds. Allow at most two retries per image/source, four starts per
+  second. Successful images, offscreen cards and hidden documents are skipped.
+- Reassign the same source through WebView2 without query rewriting, profile
+  clearing, page reload, route changes or losing scroll/player state. Reset
+  state when a card is reused with a different URL. Unobserve removed cards
+  and keep per-image state weakly referenced so long feeds do not retain them.
+- The screenshot alone does not establish the cause in the user's session.
+  Recovery handles transient image failures; it cannot repair a persistent
+  network outage or guarantee compatibility with future YouTube markup.
+
+- 2026-09-14: built Windows installer 1.3.3 with the tab-strip plus button and
+  context-menu duplication. Installer and payload versions match; SHA256 and
+  artifact size are recorded in `downloads/youtube-viewer-installer-1.3.3.json`.
+  Build log: `downloads/youtube-viewer-installer-1.3.3-build.log`. Installation
+  was not run. `AGENTS.md` now requires installer delivery after viewer changes.
+
+- 2026-09-11: reproduced the false timeout with a ready document and a stalled
+  image, then passed the real 30-second WebView2 regression after cancelling the
+  watchdog at DOM readiness. 21/21 logic tests passed. Installer 1.3.2 built and
+  installed with user approval; the original video tab title returned after a
+  graceful restart. Build/install logs: `downloads/youtube-viewer-installer-1.3.2-build.log`
+  and `downloads/youtube-viewer-install-1.3.2.log`.
+  Playback remains unverified/blocked: isolated real-video smoke observed zero
+  frames/time, then YouTube request timeouts in system, no-QUIC and optional
+  local-proxy modes. Ordinary HTTPS succeeds both directly and through the proxy.
+  Do not claim the timeout fix restores video delivery or alter routing silently.
+
+- Installer 1.3.1 was built for the selected-tab startup and navigation-failure
+  fixes on 2026-09-09. The 21 logic tests, WPF suite, live WebView2 regression
+  and isolated real YouTube smoke passed. Build log:
+  `downloads/youtube-viewer-installer-1.3.1-build.log`; artifact/hash manifest:
+  `downloads/youtube-viewer-installer-1.3.1.json`. Installation was not run.
 
 - Windows installer 1.3.0 was compiled on 2026-09-05 with tab reordering,
   bulk closure and persistent open-tab sessions. Artifact:

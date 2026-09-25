@@ -2,26 +2,46 @@ using System.Collections;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Markup;
+using System.Xml.Linq;
 using Microsoft.Web.WebView2.Wpf;
 using YouTubeViewer;
 
-internal static class Program
+internal static partial class Program
 {
     private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
 
     [STAThread]
-    private static int Main()
+    private static int Main(string[] args)
     {
         // Exercise real WPF resources and routed menu commands without opening
         // windows, navigating to YouTube, or accessing the user's web profile.
-        var app = new App();
-        app.InitializeComponent();
+        // Use a plain Application so pumping the dispatcher cannot invoke
+        // production App.OnStartup or access the user's real browser profile.
+        var app = new Application();
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        var resources = XDocument.Load("youtube_viewer/App.xaml").Root!.Element(presentation + "Application.Resources")!;
+        var dictionary = new XElement(presentation + "ResourceDictionary",
+            new XAttribute(XNamespace.Xmlns + "x", "http://schemas.microsoft.com/winfx/2006/xaml"), resources.Elements());
+        app.Resources = (ResourceDictionary)XamlReader.Parse(dictionary.ToString());
         app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
         try
         {
             VerifyMoveAndBulkClose();
             VerifySingleTabMenu();
             VerifySessionAcrossWindows();
+            if (args.Contains("--webview")) RunBrowserTests();
+            if (args.Contains("--adblock")) RunBrowserTests(adBlockOnly: true);
+            if (args.Contains("--youtube")) RunBrowserTests(verifyYouTube: true);
+            var playbackIndex = Array.IndexOf(args, "--playback-url");
+            if (playbackIndex >= 0)
+            {
+                if (playbackIndex + 1 >= args.Length) throw new ArgumentException("--playback-url requires a public YouTube watch URL");
+                var proxyIndex = Array.IndexOf(args, "--proxy-url");
+                if (proxyIndex >= 0 && proxyIndex + 1 >= args.Length) throw new ArgumentException("--proxy-url requires an HTTP proxy URL");
+                RunBrowserTests(verifyYouTube: true, playbackUrl: args[playbackIndex + 1],
+                    disableQuic: args.Contains("--disable-quic"), proxyUrl: proxyIndex >= 0 ? args[proxyIndex + 1] : null);
+            }
             Console.WriteLine("PASS WPF tab identity, selection, context menus, bulk close and restoration history");
             return 0;
         }
@@ -88,12 +108,15 @@ internal static class Program
         try
         {
             var store = new BrowserSessionStore(System.IO.Path.Combine(directory, "session.json"));
-            store.Save(new BrowserSession(new[] { "https://a.test/", "https://b.test/", "https://c.test/" }, 1));
+            store.Save(new BrowserSession(new[] { "https://a.test/", "https://b.test/", "https://c.test/" }, 1,
+                new[] { "Видео A", "Видео B", "Видео C" }));
             var window = new MainWindow(store);
             Invoke(window, "RestoreSessionTabs");
             var tabs = (IList)Field(window, "_tabs");
             var originalB = tabs[1]!;
             var originalC = tabs[2]!;
+            Check(((TextBlock)originalC.GetType().GetProperty("Title")!.GetValue(originalC)!).Text == "Видео C",
+                "Saved title must appear before a background WebView loads");
             Invoke(window, "MoveTab", originalC, tabs[0]!, false);
             Check(store.Load().SelectedIndex == 2, "Reorder must persist the selected tab's new position");
             Invoke(window, "RememberAddress", originalB, "https://b.test/watch?v=updated");
@@ -105,6 +128,8 @@ internal static class Program
             Check(string.Join(",", restored.Addresses) == "https://c.test/,https://a.test/,https://b.test/watch?v=updated",
                 "Restart must recover all URLs, including an updated address, in visual order");
             Check(restored.SelectedIndex == 2, "Restart must restore selected tab");
+            Check(string.Join("|", restored.Titles!) == "Видео C|Видео A|b.test",
+                "Restart must retain titles in displayed order and replace a changed URL's stale title");
             var restoredTabs = (IList)Field(nextWindow, "_tabs");
             var anchor = restoredTabs[0]!;
             Command(Item(anchor).ContextMenu, TabCloseScope.Right).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
@@ -178,4 +203,5 @@ internal static class Program
     {
         if (!condition) throw new InvalidOperationException(message);
     }
+
 }

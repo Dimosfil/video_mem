@@ -2,10 +2,11 @@ $ErrorActionPreference = "Stop"
 
 $AppRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Executable = Join-Path $AppRoot "dist\YouTube Viewer\YouTube Viewer.exe"
-$SourcePatterns = @("*.cs", "*.xaml", "*.csproj")
+$SourcePatterns = @("*.cs", "*.xaml", "*.csproj", "adblock.lock.json", "THIRD-PARTY-NOTICES.md")
 $SourceFiles = foreach ($pattern in $SourcePatterns) {
     Get-ChildItem -LiteralPath $AppRoot -Filter $pattern -File
 }
+$SourceFiles += Get-ChildItem -LiteralPath (Join-Path $AppRoot 'build_support') -File
 $NeedsBuild = -not (Test-Path -LiteralPath $Executable -PathType Leaf)
 
 if (-not $NeedsBuild) {

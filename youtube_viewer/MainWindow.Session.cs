@@ -10,7 +10,8 @@ public partial class MainWindow
 
     private BrowserSession CaptureSession() => new(
         _tabs.Select(tab => tab.LastAddress ?? tab.InitialAddress).ToArray(),
-        Math.Max(0, Tabs.SelectedIndex));
+        Math.Max(0, Tabs.SelectedIndex),
+        _tabs.Select(tab => tab.Title.Text).ToArray());
 
     private void SaveSession()
     {
@@ -31,7 +32,8 @@ public partial class MainWindow
         var addresses = session.Addresses.Length > 0 ? session.Addresses : new[] { BrowserAddress.Home };
         // Build every placeholder before asynchronous WebView initialization.
         // Closing during startup must preserve the entire session, not a prefix.
-        var restored = addresses.Select(AddBrowserTab).ToArray();
+        var restored = addresses.Select((address, index) =>
+            AddBrowserTab(address, index < (session.Titles?.Length ?? 0) ? session.Titles![index] : null)).ToArray();
         Tabs.SelectedItem = restored[Math.Clamp(session.SelectedIndex, 0, restored.Length - 1)].Item;
         _sessionReady = true;
         SaveSession();
@@ -41,7 +43,10 @@ public partial class MainWindow
     private void RememberAddress(BrowserTab tab, string address)
     {
         if (!_tabs.Contains(tab) || !BrowserSession.IsWebAddress(address)) return;
+        if (!string.Equals(tab.LastAddress ?? tab.InitialAddress, address, StringComparison.Ordinal))
+            tab.Title.Text = new Uri(address).Host;
         tab.LastAddress = address;
+        tab.Item.ToolTip = address;
         SaveSession();
     }
 }

@@ -20,6 +20,11 @@ public partial class MainWindow : Window
         public required WebView2 View { get; init; }
         public required string InitialAddress { get; init; }
         public string? LastAddress { get; set; }
+        public Task? InitializationTask { get; set; }
+        public bool IsLoading { get; set; }
+        public string? LoadError { get; set; }
+        public ulong NavigationId { get; set; }
+        public CancellationTokenSource? NavigationTimeout { get; set; }
     }
 
     private readonly List<BrowserTab> _tabs = new();
@@ -60,7 +65,7 @@ public partial class MainWindow : Window
 
             _connectionSettings = connectionSettings;
             var profileDirectory = ViewerProfile.UserDataFolder();
-            var options = new CoreWebView2EnvironmentOptions();
+            var options = new CoreWebView2EnvironmentOptions { AreBrowserExtensionsEnabled = true };
             if (_connectionSettings.GetProxy() is { } proxy)
             {
                 options.AdditionalBrowserArguments = proxy.BrowserArguments;
@@ -76,8 +81,8 @@ public partial class MainWindow : Window
             _initialized = true;
             StartupPanel.Visibility = Visibility.Collapsed;
             SetChromeEnabled(true);
-            var restored = RestoreSessionTabs();
-            await Task.WhenAll(restored.Select(InitializeBrowserTabAsync));
+            RestoreSessionTabs();
+            await InitializeSelectedTabAsync();
         }
         catch (Exception exception)
         {
@@ -163,7 +168,7 @@ public partial class MainWindow : Window
         Application.Current.Shutdown();
     }
 
-    private async Task CreateTabAsync(string address, bool focusAddress = false)
+    private async Task CreateTabAsync(string address, bool focusAddress = false, BrowserTab? insertAfter = null)
     {
         if (_webViewEnvironment is null || _windowClosing)
         {
@@ -171,6 +176,10 @@ public partial class MainWindow : Window
         }
 
         var tab = AddBrowserTab(address);
+        if (insertAfter is not null)
+        {
+            MoveTab(tab, insertAfter, afterTarget: true);
+        }
         SaveSession();
         await InitializeBrowserTabAsync(tab);
         if (focusAddress && ReferenceEquals(CurrentTab, tab))
@@ -180,7 +189,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private BrowserTab AddBrowserTab(string address)
+    private BrowserTab AddBrowserTab(string address, string? savedTitle = null)
     {
         var view = new WebView2
         {
@@ -188,7 +197,7 @@ public partial class MainWindow : Window
         };
         var title = new TextBlock
         {
-            Text = "Новая вкладка",
+            Text = string.IsNullOrWhiteSpace(savedTitle) ? new Uri(BrowserAddress.Resolve(address)).Host : savedTitle,
             TextTrimming = TextTrimming.CharacterEllipsis,
             VerticalAlignment = VerticalAlignment.Center,
             MaxWidth = 190,
@@ -218,6 +227,7 @@ public partial class MainWindow : Window
         {
             Header = header,
             Content = view,
+            ToolTip = BrowserAddress.Resolve(address),
         };
         var browserTab = new BrowserTab
         {
@@ -235,24 +245,32 @@ public partial class MainWindow : Window
         return browserTab;
     }
 
-    private async Task InitializeBrowserTabAsync(BrowserTab browserTab)
+    private Task InitializeBrowserTabAsync(BrowserTab browserTab) =>
+        browserTab.InitializationTask ??= InitializeBrowserTabCoreAsync(browserTab);
+
+    private async Task InitializeBrowserTabCoreAsync(BrowserTab browserTab)
     {
         var view = browserTab.View;
+        browserTab.IsLoading = true;
+        browserTab.LoadError = null;
+        UpdateChromeIfCurrent(browserTab);
         try
         {
             await view.EnsureCoreWebView2Async(_webViewEnvironment);
+            if (!_tabs.Contains(browserTab) || _windowClosing) return;
+            await _adBlocker.InitializeAsync(view.CoreWebView2, new System.Windows.Interop.WindowInteropHelper(this).Handle);
+            if (!_tabs.Contains(browserTab) || _windowClosing) return;
+            UpdateAdBlockButton();
+            ConfigureWebView(browserTab);
+            await view.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(ThumbnailRecovery.Script);
+            if (!_tabs.Contains(browserTab) || _windowClosing) return;
+            view.CoreWebView2.Navigate(browserTab.LastAddress ?? browserTab.InitialAddress);
         }
-        catch (Exception) when (!_tabs.Contains(browserTab))
+        catch (Exception exception)
         {
-            // A tab (or the window) can be closed while WebView2 initializes.
-            return;
+            if (_tabs.Contains(browserTab) && !_windowClosing)
+                SetTabLoadError(browserTab, $"Не удалось открыть страницу: {exception.Message}");
         }
-        if (!_tabs.Contains(browserTab))
-        {
-            return;
-        }
-        ConfigureWebView(browserTab);
-        view.CoreWebView2.Navigate(browserTab.InitialAddress);
     }
 
     private void ConfigureWebView(BrowserTab tab)
@@ -268,21 +286,17 @@ public partial class MainWindow : Window
         core.NavigationStarting += (_, args) =>
         {
             RememberAddress(tab, args.Uri);
-            if (ReferenceEquals(CurrentTab, tab))
-            {
-                AddressBox.Text = args.Uri;
-                LoadingBar.Visibility = Visibility.Visible;
-                ShowStatus("Загрузка…");
-            }
+            BeginTabNavigation(tab, args.NavigationId);
         };
+        core.DOMContentLoaded += (_, args) => MarkTabDocumentReady(tab, args.NavigationId);
         core.NavigationCompleted += (_, args) =>
         {
-            if (ReferenceEquals(CurrentTab, tab))
-            {
-                LoadingBar.Visibility = Visibility.Collapsed;
-                ShowStatus(args.IsSuccess ? string.Empty : $"Ошибка загрузки: {args.WebErrorStatus}");
-                UpdateChrome();
-            }
+            if (args.NavigationId != tab.NavigationId || !_tabs.Contains(tab)) return;
+            CancelNavigationTimeout(tab);
+            tab.IsLoading = false;
+            if (!args.IsSuccess && tab.LoadError is null)
+                tab.LoadError = $"Не удалось загрузить страницу: {args.WebErrorStatus}. Проверьте подключение или настройки прокси.";
+            UpdateChromeIfCurrent(tab);
         };
         core.HistoryChanged += (_, _) => UpdateChromeIfCurrent(tab);
         core.SourceChanged += (_, _) =>
@@ -292,9 +306,9 @@ public partial class MainWindow : Window
         };
         core.DocumentTitleChanged += (_, _) =>
         {
-            tab.Title.Text = string.IsNullOrWhiteSpace(core.DocumentTitle)
-                ? "YouTube"
-                : core.DocumentTitle;
+            if (string.IsNullOrWhiteSpace(core.DocumentTitle)) return;
+            tab.Title.Text = core.DocumentTitle;
+            SaveSession();
             if (ReferenceEquals(CurrentTab, tab))
             {
                 Title = $"{tab.Title.Text} — YouTube Viewer";
@@ -328,17 +342,22 @@ public partial class MainWindow : Window
     {
         var tab = CurrentTab;
         var core = tab?.View.CoreWebView2;
+        LoadingBar.Visibility = tab?.IsLoading == true ? Visibility.Visible : Visibility.Collapsed;
+        BrowserErrorPanel.Visibility = tab?.LoadError is not null ? Visibility.Visible : Visibility.Collapsed;
+        BrowserErrorText.Text = tab?.LoadError ?? string.Empty;
+        if (tab is not null) tab.View.Visibility = tab.LoadError is null ? Visibility.Visible : Visibility.Hidden;
+        ShowStatus(tab?.IsLoading == true ? "Загрузка…" : tab?.LoadError ?? string.Empty);
         BackButton.IsEnabled = core?.CanGoBack == true;
         ForwardButton.IsEnabled = core?.CanGoForward == true;
-        ReloadButton.IsEnabled = core is not null;
+        ReloadButton.IsEnabled = tab is not null;
         HomeButton.IsEnabled = core is not null;
         GoButton.IsEnabled = core is not null;
         AddressBox.IsEnabled = core is not null;
 
-        if (core is not null)
+        if (tab is not null)
         {
-            AddressBox.Text = core.Source;
-            Title = string.IsNullOrWhiteSpace(core.DocumentTitle)
+            AddressBox.Text = tab.LastAddress ?? tab.InitialAddress;
+            Title = string.IsNullOrWhiteSpace(core?.DocumentTitle)
                 ? "YouTube Viewer"
                 : $"{core.DocumentTitle} — YouTube Viewer";
         }
@@ -346,7 +365,7 @@ public partial class MainWindow : Window
 
     private void SetChromeEnabled(bool enabled)
     {
-        NewTabButton.IsEnabled = enabled;
+        Tabs.IsEnabled = enabled;
         HomeButton.IsEnabled = enabled;
         AddressBox.IsEnabled = enabled;
         GoButton.IsEnabled = enabled;
@@ -375,6 +394,7 @@ public partial class MainWindow : Window
 
         _tabs.Remove(tab);
         Tabs.Items.Remove(tab.Item);
+        CancelNavigationTimeout(tab);
         tab.View.Dispose();
         SaveSession();
 
@@ -506,8 +526,8 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ReloadButton_Click(object sender, RoutedEventArgs e) =>
-        CurrentTab?.View.CoreWebView2?.Reload();
+    private async void ReloadButton_Click(object sender, RoutedEventArgs e) =>
+        await ReloadCurrentTabAsync();
 
     private void HomeButton_Click(object sender, RoutedEventArgs e) =>
         CurrentTab?.View.CoreWebView2?.Navigate(BrowserAddress.Home);
@@ -528,12 +548,13 @@ public partial class MainWindow : Window
         }
     }
 
-    private void Tabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private async void Tabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (e.Source == Tabs && !_reorderingTabs)
         {
             UpdateChrome();
             SaveSession();
+            await InitializeSelectedTabAsync();
         }
     }
 
@@ -561,7 +582,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                CurrentTab?.View.CoreWebView2?.Reload();
+                await ReloadCurrentTabAsync();
             }
         }
         else if (key == Key.Escape)
@@ -614,6 +635,7 @@ public partial class MainWindow : Window
         _windowClosing = true;
         foreach (var tab in _tabs.ToArray())
         {
+            CancelNavigationTimeout(tab);
             tab.View.Dispose();
         }
 

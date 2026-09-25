@@ -21,9 +21,12 @@ public partial class MainWindow
         {
             foreach (var command in menu.Items.OfType<MenuItem>())
             {
-                command.IsEnabled = command.Tag is TabCloseScope scope
-                    ? TabOperations.SelectToClose(_tabs, tab, scope).Length > 0
-                    : _closedTabs.Count > 0;
+                command.IsEnabled = command.Tag switch
+                {
+                    TabCloseScope scope => TabOperations.SelectToClose(_tabs, tab, scope).Length > 0,
+                    "Duplicate" => _webViewEnvironment is not null && !_windowClosing && _tabs.Contains(tab),
+                    _ => _closedTabs.Count > 0,
+                };
             }
         };
         item.ContextMenu = menu;
@@ -161,6 +164,14 @@ public partial class MainWindow
             {
                 CloseTab(tab);
             }
+        }
+    }
+
+    private async void DuplicateTabMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { DataContext: BrowserTab tab } && _tabs.Contains(tab))
+        {
+            await CreateTabAsync(tab.LastAddress ?? tab.InitialAddress, insertAfter: tab);
         }
     }
 

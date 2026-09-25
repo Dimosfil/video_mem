@@ -8,9 +8,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>YouTube Viewer</AssemblyName>
     <RootNamespace>YouTubeViewer</RootNamespace>
-    <Version>1.3.0</Version>
-    <FileVersion>1.3.0.0</FileVersion>
-    <AssemblyVersion>1.3.0.0</AssemblyVersion>
+    <Version>1.3.6</Version>
+    <FileVersion>1.3.6.0</FileVersion>
+    <AssemblyVersion>1.3.6.0</AssemblyVersion>
     <Product>YouTube Viewer</Product>
     <Description>Standalone YouTube viewer with configurable routing</Description>
     <ApplicationIcon Condition="Exists('build\youtube-viewer.ico')">build\youtube-viewer.ico</ApplicationIcon>
@@ -23,5 +23,18 @@
 
   <ItemGroup>
     <Compile Remove="tests\**\*.cs" />
+    <Content Include="adblock.lock.json;THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+  <Target Name="RestoreAdBlocker" BeforeTargets="AssignTargetPaths">
+    <Exec Command="pwsh.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\build_support\restore-adblock.ps1&quot;" />
+    <ItemGroup>
+      <_AdBlockFiles Include="build\adblock\extension\**\*" />
+      <_AdBlockFiles>
+        <Link>Extensions\uBlockOriginLite\%(_AdBlockFiles.RecursiveDir)%(_AdBlockFiles.Filename)%(_AdBlockFiles.Extension)</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </_AdBlockFiles>
+      <Content Include="@(_AdBlockFiles)" />
+    </ItemGroup>
+  </Target>
 </Project>

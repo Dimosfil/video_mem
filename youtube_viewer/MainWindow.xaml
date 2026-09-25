@@ -15,6 +15,8 @@
         PreviewKeyDown="Window_PreviewKeyDown">
     <Window.Resources>
         <ContextMenu x:Key="TabContextMenu" x:Shared="False">
+            <MenuItem Header="Дублировать вкладку" Tag="Duplicate" Click="DuplicateTabMenu_Click" />
+            <Separator />
             <MenuItem Header="Закрыть вкладку" InputGestureText="Ctrl+W"
                       Tag="{x:Static local:TabCloseScope.Current}" Click="CloseTabsMenu_Click" />
             <MenuItem Header="Закрыть остальные вкладки"
@@ -112,21 +114,17 @@
                         ToolTip="Перейти"
                         IsEnabled="False"
                         Click="GoButton_Click" />
-                <Button x:Name="NewTabButton"
-                        Grid.Column="6"
-                        Style="{StaticResource ChromeButton}"
-                        Content="+"
-                        FontSize="24"
-                        ToolTip="Новая вкладка (Ctrl+T)"
-                        IsEnabled="False"
-                        Click="NewTabButton_Click" />
                 <Button x:Name="SettingsButton"
-                        Grid.Column="7"
+                        Grid.Column="6"
                         Style="{StaticResource ChromeButton}"
                         Content="⚙"
                         FontSize="17"
                         ToolTip="Настройки подключения"
                         Click="SettingsButton_Click" />
+                <Button x:Name="AdBlockButton" Grid.Column="7" Margin="6,0,0,0"
+                        Padding="8,4" Content="Реклама: …" IsEnabled="False"
+                        ToolTip="Подготовка блокировки рекламы"
+                        Click="AdBlockButton_Click" />
             </Grid>
         </Border>
 
@@ -142,7 +140,39 @@
             <TabControl x:Name="Tabs"
                         Background="{StaticResource AppBackgroundBrush}"
                         BorderThickness="0"
-                        SelectionChanged="Tabs_SelectionChanged" />
+                        IsEnabled="False"
+                        SelectionChanged="Tabs_SelectionChanged">
+                <TabControl.Template>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Grid HorizontalAlignment="Left">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                              VerticalScrollBarVisibility="Disabled"
+                                              CanContentScroll="False">
+                                    <TabPanel IsItemsHost="True" KeyboardNavigation.TabIndex="1" />
+                                </ScrollViewer>
+                                <Button x:Name="NewTabButton" Grid.Column="1"
+                                        Style="{StaticResource ChromeButton}"
+                                        Content="+" FontSize="24" Margin="4,2,4,0"
+                                        VerticalAlignment="Top"
+                                        ToolTip="Новая вкладка (Ctrl+T)"
+                                        AutomationProperties.Name="Новая вкладка"
+                                        Click="NewTabButton_Click" />
+                            </Grid>
+                            <ContentPresenter x:Name="PART_SelectedContentHost"
+                                              Grid.Row="1" ContentSource="SelectedContent" />
+                        </Grid>
+                    </ControlTemplate>
+                </TabControl.Template>
+            </TabControl>
             <StackPanel x:Name="StartupPanel"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center">
@@ -158,6 +188,19 @@
                            Margin="0,12,0,0"
                            HorizontalAlignment="Center" />
             </StackPanel>
+            <Border x:Name="BrowserErrorPanel"
+                    Visibility="Collapsed" MaxWidth="520" Padding="24"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{StaticResource ChromeBrush}" CornerRadius="8">
+                <StackPanel>
+                    <TextBlock Text="Не удалось загрузить страницу" FontSize="20" Margin="0,0,0,12" />
+                    <TextBlock x:Name="BrowserErrorText" TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
+                        <Button Content="Повторить загрузку" Padding="12,8" Click="ReloadButton_Click" />
+                        <Button Content="Настройки подключения" Padding="12,8" Margin="10,0,0,0" Click="SettingsButton_Click" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
         </Grid>
 
         <Border x:Name="StatusPanel"

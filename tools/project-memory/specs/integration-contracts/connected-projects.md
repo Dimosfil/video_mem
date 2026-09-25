@@ -1,5 +1,19 @@
 # Connected Projects
 
+## uBlock Origin Lite
+
+- Source: https://github.com/uBlockOrigin/uBOL-home (upstream extension by Raymond Hill).
+- Role: separate, bundled Manifest V3 content-blocking extension in the Viewer WebView2 profile.
+- Retrieval: `youtube_viewer/adblock.lock.json` pins release URL, version and SHA256.
+  `build_support/restore-adblock.ps1` restores it into ignored `build/adblock/`;
+  MSBuild copies complete extension source/rules/license to `Extensions/uBlockOriginLite/`.
+- Modification: stable public manifest key for identity across install paths;
+  filtering engine and rules are upstream. See `youtube_viewer/THIRD-PARTY-NOTICES.md`.
+- Updates: review/pin another release and checksum, test WebView2 filtering, ship
+  a new installer. Do not download or replace extensions during normal startup.
+- Boundary: only the Viewer profile; no system browser, VPN, DNS, proxy or OS
+  routing changes. Broad host permission is used by upstream for optimal mode.
+
 ## telegram_bot_template
 
 - Purpose: reusable Telegram-first backend template and reference implementation.

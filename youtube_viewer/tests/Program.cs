@@ -27,9 +27,11 @@ var tests = new (string Name, Action Run)[]
         {
             Equal(0, store.Load().Addresses.Length);
             var addresses = new[] { "https://www.youtube.com/watch?v=first", "https://example.test/видео", "https://www.youtube.com/watch?v=first" };
-            store.Save(new BrowserSession(addresses, 1));
+            var titles = new[] { "Первое видео", "Заголовок 🎬", "Другое видео" };
+            store.Save(new BrowserSession(addresses, 1, titles));
             var restored = store.Load();
             Equal(string.Join("|", addresses), string.Join("|", restored.Addresses));
+            Equal(string.Join("|", titles), string.Join("|", restored.Titles!));
             Equal(1, restored.SelectedIndex);
             store.Save(BrowserSession.Empty);
             Equal(0, store.Load().Addresses.Length);
@@ -37,11 +39,21 @@ var tests = new (string Name, Action Run)[]
     }),
     ("session validates saved addresses and remaps selected tab", () =>
     {
-        var normalized = new BrowserSession(new[] { "https://a.test", "javascript:alert(1)", "https://b.test" }, 2).Normalize();
+        var normalized = new BrowserSession(new[] { "https://a.test", "javascript:alert(1)", "https://b.test" }, 2,
+            new[] { "A", "invalid", "B" }).Normalize();
         Equal("https://a.test|https://b.test", string.Join("|", normalized.Addresses));
+        Equal("A|B", string.Join("|", normalized.Titles!));
         Equal(1, normalized.SelectedIndex);
         Equal(0, new BrowserSession(new[] { "https://a.test" }, -10).Normalize().SelectedIndex);
         Equal(0, new BrowserSession(null!, 99).Normalize().SelectedIndex);
+    }),
+    ("old session without titles remains readable", () =>
+    {
+        WithSessionStore((store, path) =>
+        {
+            File.WriteAllText(path, "{\"Addresses\":[\"https://a.test/\"],\"SelectedIndex\":0}");
+            Equal("", store.Load().Titles!.Single());
+        });
     }),
     ("damaged session falls back to intact backup without overwriting it", () =>
     {

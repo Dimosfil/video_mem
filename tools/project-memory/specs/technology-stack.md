@@ -1,6 +1,6 @@
 # Technology Stack
 
-Last reviewed: 2026-09-02
+Last reviewed: 2026-09-16 (Viewer ad-blocking integration)
 
 Canonical source: this file
 Linked from: `README.md`, `tools/AGENT_RUNBOOK.md`
@@ -49,6 +49,12 @@ stack facts, commands, runtime assumptions, and operational notes here.
 | Viewer compile check | `dotnet build .\youtube_viewer\YouTubeViewer.csproj --configuration Release` | `youtube_viewer/` |
 
 ## External Services
+
+Viewer ad blocking uses bundled uBlock Origin Lite (MV3), pinned in
+`youtube_viewer/adblock.lock.json`. PowerShell 7 restores the checksum-verified
+archive from GitHub at build time. WebView2 loads the unpacked extension through
+`CoreWebView2Profile.AddBrowserExtensionAsync`; filtering uses Chromium DNR and
+upstream content scripts. Normal startup needs no extension download.
 
 | Service | Role | Evidence | Boundary |
 | --- | --- | --- | --- |

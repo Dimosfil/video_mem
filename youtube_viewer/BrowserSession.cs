@@ -3,21 +3,23 @@ using System.Text.Json;
 
 namespace YouTubeViewer;
 
-public sealed record BrowserSession(string[] Addresses, int SelectedIndex)
+public sealed record BrowserSession(string[] Addresses, int SelectedIndex, string[]? Titles = null)
 {
     public static BrowserSession Empty { get; } = new(Array.Empty<string>(), 0);
 
     public BrowserSession Normalize()
     {
         var addresses = new List<string>();
+        var titles = new List<string>();
         var selected = 0;
         for (var index = 0; index < (Addresses?.Length ?? 0); index++)
         {
             if (!IsWebAddress(Addresses![index])) continue;
             if (index <= SelectedIndex) selected = addresses.Count;
             addresses.Add(Addresses[index]);
+            titles.Add(index < (Titles?.Length ?? 0) ? Titles![index] ?? string.Empty : string.Empty);
         }
-        return new BrowserSession(addresses.ToArray(), selected);
+        return new BrowserSession(addresses.ToArray(), selected, titles.ToArray());
     }
 
     public static bool IsWebAddress(string? address) =>

@@ -260,6 +260,16 @@ Get-ChildItem -LiteralPath .\downloads
 
 ## Local Rules
 
+- After changes to YouTube Viewer code, UI, runtime configuration, or packaging,
+  complete the relevant checks and build the Windows installer in the same task
+  with `.\packaging\windows\build.ps1`, without waiting for a separate request.
+  A standalone application EXE is not the final delivery artifact. Increment
+  the patch version for a new installer unless the user specifies another
+  version; keep project, executable, installer metadata, and documentation in
+  sync. Verify the installer exists and its version matches the payload, record
+  its SHA256, and include a clickable installer path in the final answer.
+  Documentation-only changes do not require rebuilding. If packaging is
+  blocked, report the exact blocker rather than claiming delivery is complete.
 - Do not revert user changes unless explicitly requested.
 - Treat dirty worktrees as normal.
 - Keep changes scoped to the current task.
