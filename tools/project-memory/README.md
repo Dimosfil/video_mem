@@ -77,6 +77,19 @@ Split documents by meaning. Keep feature algorithms, business logic,
 architecture contracts, and implementation mapping searchable as separate
 focused files instead of one giant document.
 
+Keep a short link for each active specification in this README, or point to the
+project's canonical spec index. When a spec is added, renamed, moved, or
+retired, update that index in the same change and check its relative links.
+Label implemented, planned, and historical behavior in specs when they could
+be confused. For current-implementation claims, record the last check date and
+source or test paths; dates alone do not prove the claim.
+
+Keep specs concise and current. Revise the relevant contract when behavior
+changes; do not append a transcript of every task. Link to source, tests, docs,
+and evidence rather than copying their full contents here. Generated SQLite or
+vector indexes may help retrieval as the project grows, but the reviewable
+contracts remain focused Markdown files.
+
 Keep the current technology stack in project documentation. For compatibility,
 GI-enabled projects may keep the stack inventory at:
 
@@ -246,6 +259,25 @@ enabled retrieval layers, and expected source paths in top keyword, semantic,
 or hybrid results. Test retrieval evidence first; do not use a model's
 free-form answer wording as the primary eval target.
 
+## Optional Code Intelligence
+
+Keep project memory authoritative for requirements, workflows, decisions,
+business rules, exact project metadata, and durable notes. For deeper symbol,
+call/dependency, Git-risk, or code-health evidence, configure the optional
+`code_intelligence` section in `rag-system.json` and use:
+
+```powershell
+python .\tools\project-memory\code_intelligence.py status
+python .\tools\project-memory\code_intelligence.py route "who calls this symbol?"
+python .\tools\project-memory\code_intelligence.py invoke context MySymbol
+```
+
+Keep the provider disabled until it is separately installed, indexed, and
+verified. Only allowlist read-only MCP tools, keep generated indexes ignored,
+and verify provider results against current source. Repowise is the first
+tested adapter, not a hard dependency. Follow
+`patterns/CODE_INTELLIGENCE_ADAPTERS.md`.
+
 ## Activation Limits And Diagnostics
 
 Start with Markdown specifications and targeted search. Use generated databases
@@ -294,6 +326,8 @@ count, index path, freshness caveats, and readiness.
 - `retrieval-evals.json` or `semantic-retrieval-evals.md`: small eval set for
   keyword, semantic, and hybrid retrieval quality.
 - `rag_check.py`: optional health and retrieval eval runner.
+- `code_intelligence.py`: optional provider-neutral MCP bridge for symbol,
+  dependency, risk, and health evidence.
 - `build_chroma_index.py`: optional local Chroma adapter when semantic
   retrieval is enabled.
 - `NOTES.md`: reviewable export of durable notes from local agent memory.
